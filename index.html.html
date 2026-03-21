@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>戰區掠奪 | WARZONE EXTRACTION</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --hud-green: #00ff88;
+    --danger-red: #ff2244;
+    --warning-orange: #ff8800;
+    --info-blue: #00aaff;
+    --dark-bg: #050a0e;
+    --panel-bg: rgba(0,20,10,0.85);
+    --grid-color: rgba(0,255,136,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark-bg);
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--hud-green);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #gameWrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .hud-panel {
+    position: absolute;
+    background: var(--panel-bg);
+    border: 1px solid rgba(0,255,136,0.3);
+    padding: 8px 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Health bar */
+  #healthPanel {
+    bottom: 20px; left: 20px;
+    width: 200px;
+  }
+  .bar-label { font-size: 9px; letter-spacing: 2px; color: rgba(0,255,136,0.6); margin-bottom: 4px; }
+  .bar-track { height: 8px; background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3); }
+  .bar-fill { height: 100%; background: var(--hud-green); transition: width 0.2s; box-shadow: 0 0 8px var(--hud-green); }
+  .bar-fill.low { background: var(--danger-red); box-shadow: 0 0 8px var(--danger-red); }
+  .bar-fill.mid { background: var(--warning-orange); box-shadow: 0 0 8px var(--warning-orange); }
+  #healthVal { font-size: 18px; font-weight: 900; margin-top: 4px; }
+
+  /* Ammo */
+  #ammoPanel {
+    bottom: 20px; right: 20px;
+    text-align: right;
+  }
+  #ammoVal { font-size: 32px; font-weight: 900; }
+  #ammoMax { font-size: 12px; color: rgba(0,255,136,0.5); }
+
+  /* Controls panel */
+  #controlsPanel {
+    top: 20px; right: 20px;
+    width: 190px;
+  }
+  .ctrl-title { font-size: 9px; letter-spacing: 3px; margin-bottom: 8px; color: rgba(0,255,136,0.6); }
+  .ctrl-row { display: flex; justify-content: space-between; align-items: center; font-size: 10px; padding: 3px 0;
+    border-bottom: 1px solid rgba(0,255,136,0.08); }
+  .ctrl-key {
+    background: rgba(0,255,136,0.12);
+    border: 1px solid rgba(0,255,136,0.35);
+    color: var(--hud-green);
+    font-size: 9px; font-weight: 700;
+    padding: 1px 6px;
+    letter-spacing: 1px;
+    min-width: 38px; text-align: center;
+  }
+  .ctrl-desc { color: rgba(0,255,136,0.65); font-size: 10px; }
+  .ctrl-tip {
+    margin-top: 7px;
+    font-size: 9px; letter-spacing: 1px;
+    color: rgba(255,140,0,0.6);
+    line-height: 1.6;
+    border-top: 1px solid rgba(0,255,136,0.1);
+    padding-top: 6px;
+  }
+
+  /* Inventory */
+  #inventoryPanel {
+    top: 230px; right: 20px;
+    width: 190px;
+  }
+  .inv-title { font-size: 9px; letter-spacing: 3px; margin-bottom: 8px; color: rgba(0,255,136,0.6); }
+  .inv-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0;
+    border-bottom: 1px solid rgba(0,255,136,0.1); }
+  .inv-name { color: rgba(0,255,136,0.8); }
+  .inv-qty { color: var(--hud-green); font-weight: bold; }
+
+  /* Kill feed */
+  #killFeed {
+    top: 20px; left: 20px;
+    width: 220px;
+    font-size: 10px;
+  }
+  .kill-entry { padding: 3px 0; border-bottom: 1px solid rgba(0,255,136,0.08); }
+  .kill-entry.player { color: var(--warning-orange); }
+  .kill-entry.enemy { color: rgba(0,255,136,0.6); }
+
+  /* Mini map */
+  #minimapPanel {
+    bottom: 20px; left: 50%; transform: translateX(-50%);
+    padding: 6px;
+  }
+  #minimap { display: block; }
+
+  /* Score */
+  #scorePanel {
+    top: 20px; left: 50%; transform: translateX(-50%);
+    text-align: center;
+    padding: 6px 20px;
+  }
+  #scoreVal { font-size: 22px; font-weight: 900; }
+  #scoreLabel { font-size: 8px; letter-spacing: 3px; color: rgba(0,255,136,0.5); }
+
+  /* Zone warning */
+  #zoneWarn {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 14px; letter-spacing: 4px;
+    color: var(--danger-red);
+    text-shadow: 0 0 20px var(--danger-red);
+    display: none;
+    animation: blink 0.5s infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Screens */
+  .screen {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(5,10,14,0.96);
+    z-index: 100;
+  }
+
+  .screen h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--hud-green);
+    text-shadow: 0 0 40px var(--hud-green), 0 0 80px rgba(0,255,136,0.3);
+    margin-bottom: 8px;
+  }
+
+  .screen .subtitle {
+    font-size: 11px; letter-spacing: 4px;
+    color: rgba(0,255,136,0.4); margin-bottom: 40px;
+  }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px; letter-spacing: 3px;
+    color: var(--dark-bg);
+    background: var(--hud-green);
+    border: none; cursor: pointer;
+    padding: 14px 40px; margin: 6px;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    transition: all 0.2s;
+    font-weight: 700;
+    pointer-events: all;
+  }
+  .btn:hover { background: #fff; transform: scale(1.05); }
+  .btn.danger { background: var(--danger-red); color: #fff; }
+
+  .controls-info {
+    font-size: 10px; letter-spacing: 1px;
+    color: rgba(0,255,136,0.3);
+    margin-top: 30px; text-align: center; line-height: 2;
+  }
+  .controls-info span { color: var(--hud-green); }
+
+  #deathScreen .death-title {
+    font-size: clamp(36px, 6vw, 72px);
+    color: var(--danger-red);
+    text-shadow: 0 0 40px var(--danger-red);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900; letter-spacing: 4px;
+  }
+
+  #deathScreen .loot-lost {
+    margin: 20px; color: rgba(255,34,68,0.7);
+    font-size: 12px; letter-spacing: 2px; text-align: center;
+  }
+
+  #extractScreen .extract-title {
+    color: var(--warning-orange);
+    text-shadow: 0 0 40px var(--warning-orange);
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 900; letter-spacing: 4px;
+  }
+
+  /* Scanlines overlay */
+  #scanlines {
+    position: absolute; top:0;left:0;right:0;bottom:0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none; z-index: 50;
+  }
+
+  #reloadMsg {
+    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 3px; color: var(--warning-orange);
+    display: none;
+    animation: blink 0.4s infinite;
+  }
+
+  #pickupMsg {
+    position: absolute; top: 55%; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 3px; color: var(--info-blue);
+    display: none;
+    text-shadow: 0 0 10px var(--info-blue);
+  }
+
+  #extractMsg {
+    position: absolute; top: 42%; left: 50%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 4px; color: var(--warning-orange);
+    display: none;
+    text-shadow: 0 0 15px var(--warning-orange);
+    text-align: center;
+  }
+
+  .crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <!-- Health -->
+    <div class="hud-panel" id="healthPanel">
+      <div class="bar-label">▮ HEALTH</div>
+      <div class="bar-track"><div class="bar-fill" id="healthBar" style="width:100%"></div></div>
+      <div id="healthVal">100</div>
+    </div>
+
+    <!-- Ammo -->
+    <div class="hud-panel" id="ammoPanel">
+      <div class="bar-label">AMMO ▮</div>
+      <div><span id="ammoVal">30</span> <span id="ammoMax">/ 30</span></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="hud-panel" id="controlsPanel">
+      <div class="ctrl-title">▮ 操控說明</div>
+      <div class="ctrl-row"><span class="ctrl-key">WASD</span><span class="ctrl-desc">移動</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">滑鼠</span><span class="ctrl-desc">瞄準 / 射擊</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">F</span><span class="ctrl-desc">撿取物資</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">R</span><span class="ctrl-desc">換彈夾</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">H</span><span class="ctrl-desc">使用醫療包</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">E</span><span class="ctrl-desc">撤離點撤離</span></div>
+      <div class="ctrl-tip">
+        搜索物資 → 消滅敵人<br>
+        搶奪戰利品 → 撤離勝利
+      </div>
+    </div>
+
+    <!-- Inventory -->
+    <div class="hud-panel" id="inventoryPanel">
+      <div class="inv-title">▮ LOOT INVENTORY</div>
+      <div class="inv-row"><span class="inv-name">彈藥</span><span class="inv-qty" id="inv-ammo">0</span></div>
+      <div class="inv-row"><span class="inv-name">醫療包</span><span class="inv-qty" id="inv-med">0</span></div>
+      <div class="inv-row"><span class="inv-name">裝備</span><span class="inv-qty" id="inv-gear">0</span></div>
+      <div class="inv-row"><span class="inv-name">食物</span><span class="inv-qty" id="inv-food">0</span></div>
+    </div>
+
+    <!-- Kill Feed -->
+    <div class="hud-panel" id="killFeed">
+      <div class="inv-title">▮ COMBAT LOG</div>
+      <div id="killFeedList"></div>
+    </div>
+
+    <!-- Score -->
+    <div class="hud-panel" id="scorePanel">
+      <div id="scoreLabel">SCORE</div>
+      <div id="scoreVal">0</div>
+    </div>
+
+    <!-- Minimap -->
+    <div class="hud-panel" id="minimapPanel">
+      <canvas id="minimap" width="100" height="100"></canvas>
+    </div>
+
+    <div id="zoneWarn">⚠ 撤離區縮小 ⚠</div>
+    <div id="reloadMsg">[ 換彈夾中... ]</div>
+    <div id="pickupMsg"></div>
+    <div id="extractMsg"></div>
+  </div>
+
+  <!-- Scanlines -->
+  <div id="scanlines"></div>
+
+  <!-- Start Screen -->
+  <div class="screen" id="startScreen">
+    <h1>戰區掠奪</h1>
+    <div class="subtitle">WARZONE EXTRACTION · TACTICAL SURVIVAL</div>
+    <button class="btn" onclick="startGame()">▶ 進入戰區</button>
+    <div class="controls-info">
+      <span>WASD</span> 移動 &nbsp;|&nbsp; <span>滑鼠</span> 瞄準射擊<br>
+      <span>F</span> 撿取物品 &nbsp;|&nbsp; <span>R</span> 換彈<br>
+      <span>E</span> 在撤離點使用 &nbsp;|&nbsp; <span>H</span> 使用醫療包<br>
+      搜索物資 → 消滅敵人 → 搶奪戰利品 → 撤離
+    </div>
+  </div>
+
+  <!-- Death Screen -->
+  <div class="screen" id="deathScreen" style="display:none">
+    <div class="death-title">陣亡</div>
+    <div class="subtitle">KILLED IN ACTION</div>
+    <div class="loot-lost" id="lootLostMsg"></div>
+    <button class="btn danger" onclick="startGame()">▶ 重新部署</button>
+    <button class="btn" onclick="showStart()">◀ 返回</button>
+  </div>
+
+  <!-- Extract Screen -->
+  <div class="screen" id="extractScreen" style="display:none">
+    <div class="extract-title">成功撤離！</div>
+    <div class="subtitle">EXTRACTION SUCCESSFUL</div>
+    <div class="loot-lost" id="extractLootMsg" style="color: var(--hud-green)"></div>
+    <button class="btn" onclick="startGame()">▶ 再次出擊</button>
+    <button class="btn" onclick="showStart()">◀ 返回</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const miniCanvas = document.getElementById('minimap');
+const miniCtx = miniCanvas.getContext('2d');
+
+// Sizing
+const W = 800, H = 600;
+canvas.width = W; canvas.height = H;
+
+// Game state
+let state = 'start';
+let keys = {};
+let mouse = { x: W/2, y: H/2, down: false };
+let score = 0;
+
+// World
+const WORLD_W = 2400, WORLD_H = 2400;
+let camera = { x: 0, y: 0 };
+
+// Player
+let player = {};
+let bullets = [];
+let enemies = [];
+let lootItems = [];
+let particles = [];
+let buildings = [];
+let trees = [];
+let extractZone = null;
+let safeZone = { cx: WORLD_W/2, cy: WORLD_H/2, r: WORLD_W * 0.45 };
+let zoneTimer = 0;
+let zoneWarning = false;
+let killFeedEntries = [];
+
+function initPlayer() {
+  player = {
+    x: WORLD_W/2 + (Math.random()-0.5)*200,
+    y: WORLD_H/2 + (Math.random()-0.5)*200,
+    vx: 0, vy: 0,
+    hp: 100, maxHp: 100,
+    ammo: 30, maxAmmo: 30, totalAmmo: 90,
+    speed: 3.2,
+    angle: 0,
+    fireRate: 0, fireCooldown: 8,
+    reloading: false, reloadTimer: 0,
+    inv: { ammo: 0, med: 0, gear: 0, food: 0 },
+    radius: 14,
+    score: 0,
+    alive: true
+  };
+}
+
+// Map generation
+function generateMap() {
+  buildings = [];
+  trees = [];
+
+  // Buildings
+  const buildingDefs = [
+    {x:200,y:200,w:120,h:80},{x:400,y:150,w:90,h:70},{x:600,y:300,w:100,h:90},
+    {x:150,y:500,w:80,h:100},{x:350,y:450,w:120,h:60},{x:700,y:500,w:90,h:80},
+    {x:900,y:200,w:110,h:90},{x:1100,y:350,w:80,h:80},{x:1300,y:200,w:100,h:70},
+    {x:1500,y:400,w:90,h:90},{x:1700,y:200,w:110,h:80},{x:1900,y:350,w:80,h:70},
+    {x:200,y:900,w:100,h:80},{x:450,y:850,w:120,h:90},{x:700,y:1000,w:80,h:80},
+    {x:900,y:800,w:100,h:70},{x:1100,y:950,w:90,h:90},{x:1350,y:850,w:110,h:80},
+    {x:1600,y:900,w:80,h:90},{x:1850,y:800,w:100,h:80},{x:2050,y:950,w:90,h:70},
+    {x:250,y:1300,w:110,h:80},{x:500,y:1250,w:80,h:90},{x:750,y:1400,w:100,h:80},
+    {x:1000,y:1300,w:90,h:70},{x:1250,y:1400,w:110,h:90},{x:1500,y:1250,w:80,h:80},
+    {x:1750,y:1350,w:100,h:70},{x:2000,y:1300,w:90,h:90},{x:2100,y:1500,w:110,h:80},
+    {x:300,y:1700,w:80,h:80},{x:600,y:1800,w:100,h:70},{x:900,y:1700,w:90,h:90},
+    {x:1150,y:1800,w:110,h:80},{x:1400,y:1700,w:80,h:70},{x:1650,y:1800,w:100,h:90},
+    {x:1900,y:1700,w:90,h:80},{x:2100,y:1900,w:80,h:80},
+    {x:WORLD_W/2-200,y:WORLD_H/2-200,w:160,h:120},
+    {x:WORLD_W/2+100,y:WORLD_H/2+100,w:140,h:100},
+  ];
+  buildings = buildingDefs;
+
+  // Trees
+  for(let i=0;i<200;i++){
+    trees.push({
+      x: Math.random()*WORLD_W,
+      y: Math.random()*WORLD_H,
+      r: 16 + Math.random()*12
+    });
+  }
+
+  // Extract zone
+  const angle = Math.random()*Math.PI*2;
+  const dist = 600 + Math.random()*400;
+  extractZone = {
+    x: WORLD_W/2 + Math.cos(angle)*dist,
+    y: WORLD_H/2 + Math.sin(angle)*dist,
+    r: 60, timer: 0, active: true
+  };
+}
+
+function spawnLoot(count = 60) {
+  lootItems = [];
+  const types = [
+    {type:'ammo', color:'#ffcc00', label:'彈藥'},
+    {type:'med',  color:'#ff4466', label:'醫療包'},
+    {type:'gear', color:'#44aaff', label:'裝備'},
+    {type:'food', color:'#88ff44', label:'食物'},
+  ];
+  for(let i=0;i<count;i++){
+    const t = types[Math.floor(Math.random()*types.length)];
+    lootItems.push({
+      x: 100 + Math.random()*(WORLD_W-200),
+      y: 100 + Math.random()*(WORLD_H-200),
+      type: t.type, color: t.color, label: t.label,
+      qty: 1 + Math.floor(Math.random()*3),
+      r: 10, alive: true
+    });
+  }
+}
+
+function spawnEnemies(count = 12) {
+  enemies = [];
+  for(let i=0;i<count;i++){
+    let ex, ey;
+    do {
+      ex = 100 + Math.random()*(WORLD_W-200);
+      ey = 100 + Math.random()*(WORLD_H-200);
+    } while(dist(ex,ey,player.x,player.y) < 300);
+    enemies.push({
+      x: ex, y: ey,
+      hp: 60 + Math.floor(Math.random()*40),
+      maxHp: 100,
+      speed: 1.2 + Math.random()*0.8,
+      angle: 0,
+      fireRate: 0,
+      fireCooldown: 40 + Math.floor(Math.random()*30),
+      alive: true,
+      radius: 14,
+      state: 'patrol',
+      patrolAngle: Math.random()*Math.PI*2,
+      patrolTimer: 0,
+      inv: {
+        ammo: Math.floor(Math.random()*3),
+        med: Math.floor(Math.random()*2),
+        gear: Math.floor(Math.random()*2),
+        food: Math.floor(Math.random()*2)
+      },
+      flashTimer: 0
+    });
+  }
+}
+
+function dist(ax,ay,bx,by){
+  const dx=ax-bx,dy=ay-by;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+
+function startGame() {
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('deathScreen').style.display='none';
+  document.getElementById('extractScreen').style.display='none';
+  state = 'play';
+  score = 0;
+  killFeedEntries = [];
+  particles = [];
+  bullets = [];
+  safeZone = { cx: WORLD_W/2, cy: WORLD_H/2, r: WORLD_W * 0.42 };
+  zoneTimer = 0;
+  initPlayer();
+  generateMap();
+  spawnLoot(70);
+  spawnEnemies(14);
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+
+function showStart() {
+  state = 'start';
+  document.getElementById('startScreen').style.display='flex';
+  document.getElementById('deathScreen').style.display='none';
+  document.getElementById('extractScreen').style.display='none';
+}
+
+// Input
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if(state !== 'play') return;
+  if(e.key.toLowerCase() === 'r') startReload();
+  if(e.key.toLowerCase() === 'f') tryPickup();
+  if(e.key.toLowerCase() === 'h') useMed();
+  if(e.key.toLowerCase() === 'e') tryExtract();
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - rect.left) * (W / rect.width);
+  mouse.y = (e.clientY - rect.top) * (H / rect.height);
+});
+canvas.addEventListener('mousedown', e => { mouse.down = true; e.preventDefault(); });
+canvas.addEventListener('mouseup', () => mouse.down = false);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Actions
+function startReload() {
+  if(player.reloading || player.ammo === player.maxAmmo || player.totalAmmo <= 0) return;
+  player.reloading = true;
+  player.reloadTimer = 90;
+  document.getElementById('reloadMsg').style.display = 'block';
+}
+
+function finishReload() {
+  const needed = player.maxAmmo - player.ammo;
+  const take = Math.min(needed, player.totalAmmo);
+  player.ammo += take;
+  player.totalAmmo -= take;
+  player.reloading = false;
+  document.getElementById('reloadMsg').style.display = 'none';
+  updateHUD();
+}
+
+function tryPickup() {
+  let closest = null, closestDist = 50;
+  for(const item of lootItems) {
+    if(!item.alive) continue;
+    const d = dist(player.x, player.y, item.x, item.y);
+    if(d < closestDist) { closestDist = d; closest = item; }
+  }
+  if(closest) {
+    closest.alive = false;
+    player.inv[closest.type] += closest.qty;
+    if(closest.type === 'ammo') player.totalAmmo += closest.qty * 15;
+    addKillFeed(`撿取 ${closest.label} x${closest.qty}`, 'enemy');
+    score += 10;
+    spawnPickupFX(closest.x, closest.y, closest.color);
+    showPickupMsg(`[F] 獲得 ${closest.label} +${closest.qty}`);
+    updateHUD();
+  }
+}
+
+function useMed() {
+  if(player.inv.med <= 0 || player.hp >= player.maxHp) return;
+  player.inv.med--;
+  player.hp = Math.min(player.maxHp, player.hp + 40);
+  addKillFeed('使用醫療包 +40HP', 'enemy');
+  updateHUD();
+}
+
+function tryExtract() {
+  if(!extractZone || !extractZone.active) return;
+  if(dist(player.x, player.y, extractZone.x, extractZone.y) < extractZone.r + player.radius) {
+    doExtract();
+  }
+}
+
+function doExtract() {
+  state = 'extract';
+  const total = player.inv.ammo + player.inv.med + player.inv.gear + player.inv.food;
+  const lootScore = total * 50 + score;
+  document.getElementById('extractLootMsg').textContent =
+    `撤離分數: ${lootScore} 分 | 彈藥×${player.inv.ammo} 醫療×${player.inv.med} 裝備×${player.inv.gear} 食物×${player.inv.food}`;
+  document.getElementById('extractScreen').style.display = 'flex';
+}
+
+function playerDie() {
+  player.alive = false;
+  state = 'dead';
+  const total = player.inv.ammo + player.inv.med + player.inv.gear + player.inv.food;
+  document.getElementById('lootLostMsg').textContent =
+    `損失物資: 彈藥×${player.inv.ammo} 醫療×${player.inv.med} 裝備×${player.inv.gear} 食物×${player.inv.food}`;
+  document.getElementById('deathScreen').style.display = 'flex';
+  spawnDeathFX(player.x, player.y);
+}
+
+let pickupMsgTimer = 0;
+function showPickupMsg(msg) {
+  const el = document.getElementById('pickupMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  pickupMsgTimer = 120;
+}
+
+// Shooting
+function shoot(fromX, fromY, angle, isPlayer) {
+  const spd = 10;
+  bullets.push({
+    x: fromX, y: fromY,
+    vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd,
+    isPlayer,
+    life: 80,
+    r: isPlayer ? 4 : 3
+  });
+}
+
+// Particles
+function spawnHitFX(x, y, color) {
+  for(let i=0;i<8;i++) {
+    const a = Math.random()*Math.PI*2;
+    const spd = 1+Math.random()*3;
+    particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:20+Math.random()*20,color,r:2});
+  }
+}
+
+function spawnPickupFX(x,y,color){
+  for(let i=0;i<12;i++){
+    const a=Math.random()*Math.PI*2, spd=0.5+Math.random()*2;
+    particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-1,life:30+Math.random()*20,color,r:2+Math.random()*2});
+  }
+}
+
+function spawnDeathFX(x,y){
+  for(let i=0;i<30;i++){
+    const a=Math.random()*Math.PI*2,spd=0.5+Math.random()*4;
+    particles.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,life:60+Math.random()*40,color:'#ff2244',r:2+Math.random()*4});
+  }
+}
+
+// Collision
+function collidesWithBuilding(x, y, r) {
+  for(const b of buildings) {
+    if(x+r > b.x && x-r < b.x+b.w && y+r > b.y && y-r < b.y+b.h) return true;
+  }
+  return false;
+}
+
+// Kill feed
+function addKillFeed(msg, cls) {
+  killFeedEntries.unshift({msg, cls, life: 300});
+  if(killFeedEntries.length > 5) killFeedEntries.pop();
+  renderKillFeed();
+}
+
+function renderKillFeed() {
+  const list = document.getElementById('killFeedList');
+  list.innerHTML = killFeedEntries.slice(0,5).map(e =>
+    `<div class="kill-entry ${e.cls}">${e.msg}</div>`
+  ).join('');
+}
+
+// HUD update
+function updateHUD() {
+  const pct = player.hp / player.maxHp;
+  const bar = document.getElementById('healthBar');
+  bar.style.width = (pct*100)+'%';
+  bar.className = 'bar-fill' + (pct<0.3?' low':pct<0.6?' mid':'');
+  document.getElementById('healthVal').textContent = Math.max(0,Math.floor(player.hp));
+  document.getElementById('ammoVal').textContent = player.ammo;
+  document.getElementById('ammoMax').textContent = '/ '+player.maxAmmo + ' ['+player.totalAmmo+']';
+  document.getElementById('scoreVal').textContent = score;
+  document.getElementById('inv-ammo').textContent = player.inv.ammo;
+  document.getElementById('inv-med').textContent = player.inv.med;
+  document.getElementById('inv-gear').textContent = player.inv.gear;
+  document.getElementById('inv-food').textContent = player.inv.food;
+}
+
+// Game loop
+let lastTime = 0;
+function loop(ts) {
+  if(state !== 'play' && state !== 'dead') return;
+  const dt = Math.min((ts - lastTime)/16, 3);
+  lastTime = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  if(state !== 'play') return;
+
+  // Player movement
+  let dx = 0, dy = 0;
+  if(keys['w'] || keys['arrowup']) dy -= 1;
+  if(keys['s'] || keys['arrowdown']) dy += 1;
+  if(keys['a'] || keys['arrowleft']) dx -= 1;
+  if(keys['d'] || keys['arrowright']) dx += 1;
+  if(dx||dy){const l=Math.sqrt(dx*dx+dy*dy);dx/=l;dy/=l;}
+  let nx = player.x + dx*player.speed*dt;
+  let ny = player.y + dy*player.speed*dt;
+  nx = Math.max(player.radius, Math.min(WORLD_W-player.radius, nx));
+  ny = Math.max(player.radius, Math.min(WORLD_H-player.radius, ny));
+  if(!collidesWithBuilding(nx, player.y, player.radius)) player.x = nx;
+  if(!collidesWithBuilding(player.x, ny, player.radius)) player.y = ny;
+
+  // Camera
+  camera.x = player.x - W/2;
+  camera.y = player.y - H/2;
+  camera.x = Math.max(0, Math.min(WORLD_W-W, camera.x));
+  camera.y = Math.max(0, Math.min(WORLD_H-H, camera.y));
+
+  // Player aim
+  const wx = mouse.x + camera.x, wy = mouse.y + camera.y;
+  player.angle = Math.atan2(wy - player.y, wx - player.x);
+
+  // Player shoot
+  if(mouse.down && !player.reloading) {
+    if(player.fireRate <= 0 && player.ammo > 0) {
+      const spread = (Math.random()-0.5)*0.08;
+      shoot(player.x, player.y, player.angle+spread, true);
+      player.ammo--;
+      player.fireRate = player.fireCooldown;
+      if(player.ammo === 0 && player.totalAmmo > 0) startReload();
+      updateHUD();
+    }
+  }
+  if(player.fireRate > 0) player.fireRate -= dt;
+
+  // Reload
+  if(player.reloading) {
+    player.reloadTimer -= dt;
+    if(player.reloadTimer <= 0) finishReload();
+  }
+
+  // Enemies update
+  for(const e of enemies) {
+    if(!e.alive) continue;
+    if(e.flashTimer > 0) e.flashTimer -= dt;
+    const dp = dist(e.x, e.y, player.x, player.y);
+
+    if(dp < 500) {
+      // Chase
+      e.state = 'chase';
+      const a = Math.atan2(player.y-e.y, player.x-e.x);
+      e.angle = a;
+      let enx = e.x + Math.cos(a)*e.speed*dt;
+      let eny = e.y + Math.sin(a)*e.speed*dt;
+      if(!collidesWithBuilding(enx, e.y, e.radius)) e.x = enx;
+      if(!collidesWithBuilding(e.x, eny, e.radius)) e.y = eny;
+      // Shoot
+      if(dp < 350 && e.fireRate <= 0) {
+        const spread = (Math.random()-0.5)*0.2;
+        shoot(e.x, e.y, a+spread, false);
+        e.fireRate = e.fireCooldown;
+      }
+    } else {
+      // Patrol
+      e.patrolTimer -= dt;
+      if(e.patrolTimer <= 0) {
+        e.patrolAngle = Math.random()*Math.PI*2;
+        e.patrolTimer = 60+Math.random()*120;
+      }
+      let enx = e.x + Math.cos(e.patrolAngle)*e.speed*0.5*dt;
+      let eny = e.y + Math.sin(e.patrolAngle)*e.speed*0.5*dt;
+      enx = Math.max(20,Math.min(WORLD_W-20,enx));
+      eny = Math.max(20,Math.min(WORLD_H-20,eny));
+      if(!collidesWithBuilding(enx, e.y, e.radius)) e.x = enx;
+      if(!collidesWithBuilding(e.x, eny, e.radius)) e.y = eny;
+    }
+    if(e.fireRate > 0) e.fireRate -= dt;
+  }
+
+  // Bullets update
+  for(const b of bullets) {
+    b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
+    if(b.life <= 0) { b.life = 0; continue; }
+    // Wall collision
+    if(collidesWithBuilding(b.x, b.y, 2)) { b.life = 0; spawnHitFX(b.x,b.y,'#888'); continue; }
+
+    if(b.isPlayer) {
+      for(const e of enemies) {
+        if(!e.alive) continue;
+        if(dist(b.x,b.y,e.x,e.y) < e.radius) {
+          const dmg = 20+Math.floor(Math.random()*15);
+          e.hp -= dmg;
+          e.flashTimer = 8;
+          b.life = 0;
+          spawnHitFX(b.x,b.y,'#ff4466');
+          if(e.hp <= 0) {
+            e.alive = false;
+            score += 100;
+            addKillFeed('消滅敵人 +100分', 'player');
+            // Drop loot
+            const types = ['ammo','med','gear','food'];
+            for(const k in e.inv) {
+              if(e.inv[k] > 0) {
+                const colors = {ammo:'#ffcc00',med:'#ff4466',gear:'#44aaff',food:'#88ff44'};
+                const labels = {ammo:'彈藥',med:'醫療包',gear:'裝備',food:'食物'};
+                lootItems.push({
+                  x: e.x+(Math.random()-0.5)*30, y: e.y+(Math.random()-0.5)*30,
+                  type: k, color: colors[k], label: labels[k],
+                  qty: e.inv[k], r:10, alive:true, dropped: true
+                });
+              }
+            }
+            spawnDeathFX(e.x, e.y);
+            updateHUD();
+            // Respawn enemies gradually
+            setTimeout(() => spawnOneEnemy(), 8000+Math.random()*5000);
+          }
+          break;
+        }
+      }
+    } else {
+      if(dist(b.x,b.y,player.x,player.y) < player.radius) {
+        const dmg = 8+Math.floor(Math.random()*12);
+        player.hp -= dmg;
+        b.life = 0;
+        spawnHitFX(b.x,b.y,'#ff8800');
+        updateHUD();
+        if(player.hp <= 0) playerDie();
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.life > 0);
+
+  // Particles
+  for(const p of particles) { p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; }
+  particles = particles.filter(p => p.life > 0);
+
+  // Zone shrink
+  zoneTimer += dt;
+  if(zoneTimer > 600) {
+    safeZone.r = Math.max(200, safeZone.r - 0.3*dt);
+    zoneTimer -= 600;
+    zoneWarning = true;
+    setTimeout(()=>{zoneWarning=false;document.getElementById('zoneWarn').style.display='none';}, 3000);
+  }
+  document.getElementById('zoneWarn').style.display = zoneWarning ? 'block' : 'none';
+
+  // Zone damage
+  if(dist(player.x,player.y,safeZone.cx,safeZone.cy) > safeZone.r) {
+    player.hp -= 0.05*dt;
+    updateHUD();
+    if(player.hp <= 0) playerDie();
+  }
+
+  // Pickup hint
+  if(pickupMsgTimer > 0) {
+    pickupMsgTimer -= dt;
+    if(pickupMsgTimer <= 0) document.getElementById('pickupMsg').style.display='none';
+  }
+
+  // Near loot / extract hints
+  let nearLoot = lootItems.some(i => i.alive && dist(player.x,player.y,i.x,i.y) < 50);
+  let nearExtract = extractZone && dist(player.x,player.y,extractZone.x,extractZone.y) < extractZone.r+60;
+  const extMsg = document.getElementById('extractMsg');
+  if(nearExtract) {
+    extMsg.style.display='block';
+    extMsg.textContent='[E] 撤離';
+  } else extMsg.style.display='none';
+
+  // Kill feed timer
+  for(const e of killFeedEntries) e.life -= dt;
+  const before = killFeedEntries.length;
+  killFeedEntries = killFeedEntries.filter(e=>e.life>0);
+  if(killFeedEntries.length !== before) renderKillFeed();
+}
+
+function spawnOneEnemy() {
+  if(state !== 'play') return;
+  let ex,ey;
+  do {
+    ex = 100+Math.random()*(WORLD_W-200);
+    ey = 100+Math.random()*(WORLD_H-200);
+  } while(dist(ex,ey,player.x,player.y)<300);
+  enemies.push({
+    x:ex,y:ey,hp:60+Math.floor(Math.random()*40),maxHp:100,
+    speed:1.2+Math.random()*0.8,angle:0,fireRate:0,
+    fireCooldown:40+Math.floor(Math.random()*30),alive:true,radius:14,
+    state:'patrol',patrolAngle:Math.random()*Math.PI*2,patrolTimer:0,
+    inv:{ammo:Math.floor(Math.random()*2),med:Math.floor(Math.random()*2),gear:1,food:0},
+    flashTimer:0
+  });
+}
+
+// Render
+function render() {
+  ctx.clearRect(0,0,W,H);
+
+  // Ground
+  ctx.fillStyle = '#0a1a0f';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,255,136,0.04)';
+  ctx.lineWidth = 1;
+  const gridSize = 80;
+  const ox = -(camera.x % gridSize), oy = -(camera.y % gridSize);
+  for(let x=ox;x<W;x+=gridSize){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy;y<H;y+=gridSize){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+
+  // Safe zone
+  ctx.beginPath();
+  ctx.arc(safeZone.cx, safeZone.cy, safeZone.r, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(0,255,136,0.15)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([20,10]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Extract zone
+  if(extractZone && extractZone.active) {
+    const pulse = 0.6 + 0.4*Math.sin(Date.now()*0.003);
+    ctx.beginPath();
+    ctx.arc(extractZone.x, extractZone.y, extractZone.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,140,0,${0.08*pulse})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255,140,0,${0.6*pulse})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Label
+    ctx.fillStyle = '#ff8800';
+    ctx.font = '600 11px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('EXTRACT', extractZone.x, extractZone.y - extractZone.r - 8);
+  }
+
+  // Trees
+  for(const t of trees) {
+    const tx = t.x-camera.x, ty = t.y-camera.y;
+    if(tx<-50||tx>W+50||ty<-50||ty>H+50) continue;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.r, 0, Math.PI*2);
+    ctx.fillStyle = '#0d2a14';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,100,30,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Buildings
+  for(const b of buildings) {
+    const bx=b.x-camera.x, by=b.y-camera.y;
+    if(bx>W+50||bx+b.w<-50||by>H+50||by+b.h<-50) continue;
+    ctx.fillStyle = '#0f1f15';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = 'rgba(0,255,136,0.2)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+    // Windows
+    ctx.fillStyle = 'rgba(0,255,136,0.06)';
+    for(let wx=b.x+10;wx<b.x+b.w-15;wx+=20){
+      for(let wy=b.y+10;wy<b.y+b.h-15;wy+=18){
+        ctx.fillRect(wx, wy, 10, 10);
+      }
+    }
+  }
+
+  // Loot items
+  for(const item of lootItems) {
+    if(!item.alive) continue;
+    const ix=item.x-camera.x, iy=item.y-camera.y;
+    if(ix<-30||ix>W+30||iy<-30||iy>H+30) continue;
+    const pulse = 0.7 + 0.3*Math.sin(Date.now()*0.004 + item.x);
+    ctx.beginPath();
+    ctx.arc(item.x, item.y, item.r*pulse, 0, Math.PI*2);
+    ctx.fillStyle = item.color + '33';
+    ctx.fill();
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Icon
+    ctx.fillStyle = item.color;
+    ctx.font = 'bold 9px Share Tech Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const icons = {ammo:'A', med:'+', gear:'G', food:'F'};
+    ctx.fillText(icons[item.type] || '?', item.x, item.y);
+    if(item.dropped) {
+      ctx.font = '8px Share Tech Mono';
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText('x'+item.qty, item.x, item.y+item.r+8);
+    }
+  }
+
+  // Enemies
+  for(const e of enemies) {
+    if(!e.alive) continue;
+    const ex=e.x-camera.x, ey=e.y-camera.y;
+    if(ex<-40||ex>W+40||ey<-40||ey>H+40) continue;
+
+    // Body
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    const flash = e.flashTimer > 0;
+    ctx.fillStyle = flash ? '#ffffff' : '#cc2233';
+    ctx.beginPath();
+    ctx.arc(0, 0, e.radius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = flash ? '#ff4466' : '#ff0022';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Direction indicator
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(e.radius, 0);
+    ctx.lineTo(e.radius+6, -4);
+    ctx.lineTo(e.radius+6, 4);
+    ctx.fill();
+    ctx.restore();
+
+    // HP bar
+    const hpPct = e.hp / e.maxHp;
+    ctx.fillStyle = '#330011';
+    ctx.fillRect(e.x-18, e.y-e.radius-10, 36, 5);
+    ctx.fillStyle = hpPct > 0.5 ? '#ff4466' : '#ff8800';
+    ctx.fillRect(e.x-18, e.y-e.radius-10, 36*hpPct, 5);
+  }
+
+  // Bullets
+  for(const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fillStyle = b.isPlayer ? '#ffee44' : '#ff4466';
+    ctx.fill();
+    // Trail
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - b.vx*3, b.y - b.vy*3);
+    ctx.strokeStyle = b.isPlayer ? 'rgba(255,238,68,0.4)' : 'rgba(255,68,102,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Particles
+  for(const p of particles) {
+    ctx.globalAlpha = p.life / 40;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Player
+  if(player.alive) {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.angle);
+    // Glow
+    const grad = ctx.createRadialGradient(0,0,5,0,0,25);
+    grad.addColorStop(0,'rgba(0,255,136,0.2)');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0,0,25,0,Math.PI*2); ctx.fill();
+    // Body
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath(); ctx.arc(0,0,player.radius,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#00ffaa';
+    ctx.lineWidth = 2; ctx.stroke();
+    // Gun
+    ctx.fillStyle = '#00cc66';
+    ctx.fillRect(2, -3, 22, 6);
+    ctx.fillStyle = '#aaffcc';
+    ctx.fillRect(22, -2, 6, 4);
+    // Direction dot
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(player.radius+4,0,3,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // Crosshair
+  const cx = mouse.x, cy = mouse.y;
+  ctx.strokeStyle = 'rgba(0,255,136,0.8)';
+  ctx.lineWidth = 1;
+  const cs = 10, cg = 4;
+  ctx.beginPath(); ctx.moveTo(cx-cs-cg,cy); ctx.lineTo(cx-cg,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+cg,cy); ctx.lineTo(cx+cs+cg,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-cs-cg); ctx.lineTo(cx,cy-cg); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy+cg); ctx.lineTo(cx,cy+cs+cg); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,2,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,255,136,0.6)'; ctx.fill();
+
+  // Minimap
+  renderMinimap();
+}
+
+function renderMinimap() {
+  const mw = 100, mh = 100;
+  const scx = mw / WORLD_W, scy = mh / WORLD_H;
+  miniCtx.fillStyle = '#050a0e';
+  miniCtx.fillRect(0,0,mw,mh);
+  // Zone
+  miniCtx.beginPath();
+  miniCtx.arc(safeZone.cx*scx, safeZone.cy*scy, safeZone.r*scx, 0, Math.PI*2);
+  miniCtx.strokeStyle = 'rgba(0,255,136,0.3)';
+  miniCtx.lineWidth = 1; miniCtx.stroke();
+  // Buildings
+  miniCtx.fillStyle = 'rgba(0,255,136,0.15)';
+  for(const b of buildings) miniCtx.fillRect(b.x*scx, b.y*scy, b.w*scx, b.h*scy);
+  // Loot
+  miniCtx.fillStyle = '#ffcc00';
+  for(const item of lootItems) {
+    if(!item.alive) continue;
+    miniCtx.fillRect(item.x*scx-1, item.y*scy-1, 2, 2);
+  }
+  // Enemies
+  miniCtx.fillStyle = '#ff2244';
+  for(const e of enemies) {
+    if(!e.alive) continue;
+    miniCtx.beginPath();
+    miniCtx.arc(e.x*scx, e.y*scy, 2, 0, Math.PI*2);
+    miniCtx.fill();
+  }
+  // Extract
+  if(extractZone) {
+    miniCtx.fillStyle = '#ff8800';
+    miniCtx.beginPath();
+    miniCtx.arc(extractZone.x*scx, extractZone.y*scy, 4, 0, Math.PI*2);
+    miniCtx.fill();
+  }
+  // Player
+  miniCtx.fillStyle = '#00ff88';
+  miniCtx.beginPath();
+  miniCtx.arc(player.x*scx, player.y*scy, 3, 0, Math.PI*2);
+  miniCtx.fill();
+  // Border
+  miniCtx.strokeStyle = 'rgba(0,255,136,0.4)';
+  miniCtx.lineWidth = 1;
+  miniCtx.strokeRect(0,0,mw,mh);
+}
+</script>
+</body>
+</html>
